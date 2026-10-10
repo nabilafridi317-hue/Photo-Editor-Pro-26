@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Photo & Video Studio</title>
+
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Adsgram.ai SDK for Rewarded Ads -->
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 16px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #334155;
+        }
+
+        .balance-box {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+
+        .ad-section {
+            background: linear-gradient(135deg, #1e1b4b, #312e81);
+            padding: 16px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 24px;
+            border: 1px solid #4338ca;
+        }
+
+        .btn {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            color: #000;
+            font-weight: bold;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            margin-top: 10px;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        textarea {
+            width: 100%;
+            height: 90px;
+            background: var(--card-bg);
+            border: 1px solid #334155;
+            border-radius: 10px;
+            color: #fff;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: none;
+            font-size: 0.95rem;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--card-bg);
+            border: 1px solid #334155;
+            color: var(--text-muted);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #000;
+            border-color: var(--primary);
+        }
+
+        .info-text {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Section -->
+    <div class="header">
+        <div>🪙 টোকেন ব্যালেন্স:</div>
+        <div class="balance-box" id="token-balance">0</div>
+    </div>
+
+    <!-- Ad Watch Section -->
+    <div class="ad-section">
+        <h3 style="margin: 0 0 8px 0;">🎬 ফ্রি টোকেন আয় করুন</h3>
+        <p style="margin: 0; font-size: 0.85rem; color: #cbd5e1;">১টি অ্যাড দেখলে ৫০০ টোকেন পাবেন (দৈনিক সর্বোচ্চ ১০টি)</p>
+        <div class="info-text" id="ad-count-status">আজ দেখেছেন: 0/10 টি অ্যাড</div>
+        <button class="btn" id="watch-ad-btn" onclick="showRewardedAd()">অ্যাড দেখুন (+৫০০ টোকেন)</button>
+    </div>
+
+    <!-- Mode Selection -->
+    <div class="tab-buttons">
+        <button class="tab-btn active" id="mode-image" onclick="setMode('image')">🎨 ছবি (২ টোকেন)</button>
+        <button class="tab-btn" id="mode-video" onclick="setMode('video')">🎬 ভিডিও (৫ টোকেন)</button>
+    </div>
+
+    <!-- Generation Form -->
+    <div class="form-group">
+        <label id="prompt-label">ছবির প্রম্পট/বিবরণ লিখুন:</label>
+        <textarea id="prompt-input" placeholder="উদাহরণ: A futuristic cyberpunk city at night, 8k resolution..."></textarea>
+    </div>
+
+    <button class="btn" onclick="generateMedia()">তৈরি করুন</button>
+
+    <script>
+        // Telegram Web App Initialization
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Full screen enable
+
+        // Configuration Settings
+        let tokens = parseInt(localStorage.getItem('user_tokens')) || 0;
+        let adsWatchedToday = parseInt(localStorage.getItem('ads_watched_today')) || 0;
+        let lastWatchDate = localStorage.getItem('last_watch_date') || '';
+        let currentMode = 'image'; // 'image' or 'video'
+
+        // Adsgram Block ID (আপনার Adsgram.ai ড্যাশবোর্ড থেকে ব্লক আইডি বসান)
+        const ADSGRAM_BLOCK_ID = "YOUR_ADSGRAM_BLOCK_ID"; 
+
+        // Daily Limit Reset Logic
+        const today = new Date().toDateString();
+        if (lastWatchDate !== today) {
+            adsWatchedToday = 0;
+            localStorage.setItem('ads_watched_today', 0);
+            localStorage.setItem('last_watch_date', today);
+        }
+
+        // Update UI Status
+        function updateUI() {
+            document.getElementById('token-balance').innerText = tokens;
+            document.getElementById('ad-count-status').innerText = `আজ দেখেছেন: ${adsWatchedToday}/10 টি অ্যাড`;
+            
+            if (adsWatchedToday >= 10) {
+                const btn = document.getElementById('watch-ad-btn');
+                btn.disabled = true;
+                btn.innerText = "আজকের সীমা শেষ (10/10)";
+            }
+        }
+
+        // Adsgram Rewarded Ad Trigger
+        function showRewardedAd() {
+            if (adsWatchedToday >= 10) {
+                tg.showAlert("আপনি আজ সর্বোচ্চ ১০টি অ্যাড দেখে ফেলেছেন!");
+                return;
+            }
+
+            // Adsgram Controller
+            if (typeof AdController !== 'undefined') {
+                const AdControllerInstance = new AdController(ADSGRAM_BLOCK_ID);
+                AdControllerInstance.show().then((result) => {
+                    // User successfully watched the ad
+                    tokens += 500;
+                    adsWatchedToday += 1;
+
+                    localStorage.setItem('user_tokens', tokens);
+                    localStorage.setItem('ads_watched_today', adsWatchedToday);
+                    
+                    updateUI();
+                    tg.showAlert("অভিনন্দন! ৫০০০ টোকেন আপনার অ্যাকাউন্টে যোগ হয়েছে।");
+                }).catch((result) => {
+                    // Ad failed or closed early
+                    tg.showAlert("অ্যাড দেখা সফল হয়নি। আবার চেষ্টা করুন।");
+                });
+            } else {
+                // Demo Purpose (If Adsgram is not connected yet)
+                tokens += 500;
+                adsWatchedToday += 1;
+                localStorage.setItem('user_tokens', tokens);
+                localStorage.setItem('ads_watched_today', adsWatchedToday);
+                updateUI();
+                tg.showAlert("ডেমো অ্যাড দেখা সম্পন্ন হয়েছে (+৫০০ টোকেন)।");
+            }
+        }
+
+        // Switch Mode (Image vs Video)
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('mode-image').classList.toggle('active', mode === 'image');
+            document.getElementById('mode-video').classList.toggle('active', mode === 'video');
+
+            if (mode === 'image') {
+                document.getElementById('prompt-label').innerText = "ছবির প্রম্পট/বিবরণ লিখুন (খরচ: ২ টোকেন):";
+            } else {
+                document.getElementById('prompt-label').innerText = "ভিডিওর প্রম্পট/বিবরণ লিখুন (খরচ: ৫ টোকেন):";
+            }
+        }
+
+        // Send Data to Telegram Bot Backend
+        function generateMedia() {
+            const prompt = document.getElementById('prompt-input').value.trim();
+            const cost = (currentMode === 'image') ? 2 : 5;
+
+            if (!prompt) {
+                tg.showAlert("অনুগ্রহ করে প্রম্পট লিখুন!");
+                return;
+            }
+
+            if (tokens < cost) {
+                tg.showAlert(`পর্যাপ্ত টোকেন নেই! আপনার প্রয়োজন ${cost} টোকেন। প্রথমে অ্যাড দেখে টোকেন সংগ্রহ করুন।`);
+                return;
+            }
+
+            // Deduct Tokens
+            tokens -= cost;
+            localStorage.setItem('user_tokens', tokens);
+            updateUI();
+
+            // Send payload data to python backend via Telegram WebApp
+            const payload = {
+                action: 'generate',
+                type: currentMode,
+                prompt: prompt,
+                remaining_tokens: tokens
+            };
+
+            tg.sendData(JSON.stringify(payload)); // Closes mini app and sends data to bot
+        }
+
+        // Initial UI Render
+        updateUI();
+    </script>
+</body>
+</html>
