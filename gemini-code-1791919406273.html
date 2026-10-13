@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Photo & Video Studio</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #38bdf8;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+        body {
+            font-family: sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 16px;
+        }
+        .header, .ad-section, .box {
+            background: var(--card-bg);
+            padding: 14px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            border: 1px solid #334155;
+        }
+        .btn {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            color: #000;
+            font-weight: bold;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 1rem;
+        }
+        textarea, input[type="file"] {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #fff;
+            padding: 10px;
+            box-sizing: border-box;
+            margin-top: 6px;
+        }
+        .tab-buttons { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab-btn { flex: 1; padding: 10px; background: var(--card-bg); border: 1px solid #334155; color: var(--text-muted); border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .tab-btn.active { background: var(--primary); color: #000; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div>🪙 টোকেন ব্যালেন্স:</div>
+        <div id="token-balance" style="font-weight: bold; color: var(--primary);">0</div>
+    </div>
+
+    <div class="ad-section" style="text-align: center;">
+        <h4 style="margin: 0 0 6px 0;">🎬 ফ্রি টোকেন আয় করুন</h4>
+        <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted);" id="ad-count-status">আজ দেখেছেন: 0/10 টি অ্যাড</p>
+        <button class="btn" id="watch-ad-btn" onclick="showRewardedAd()">অ্যাড দেখুন (+৫০০ টোকেন)</button>
+    </div>
+
+    <div class="tab-buttons">
+        <button class="tab-btn active" id="mode-image" onclick="setMode('image')">🎨 ছবি (২ টোকেন)</button>
+        <button class="tab-btn" id="mode-video" onclick="setMode('video')">🎬 ভিডিও (৫ টোকেন)</button>
+    </div>
+
+    <div class="box">
+        <!-- ইউজার ইমেজ আপলোড করার অপশন -->
+        <div id="image-upload-container">
+            <label>আপনার ছবি আপলোড করুন (ঐচ্ছিক - ফটোশপ এডিটিংয়ের জন্য):</label>
+            <input type="file" id="upload-file" accept="image/*">
+        </div>
+
+        <div style="margin-top: 12px;">
+            <label id="prompt-label">প্রম্পট লিখুন (যেমন: Make it cyberpunk style):</label>
+            <textarea id="prompt-input" rows="3" placeholder="আপনার নির্দেশ এখানে লিখুন..."></textarea>
+        </div>
+
+        <button class="btn" onclick="generateMedia()">তৈরি করুন</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        let tokens = parseInt(localStorage.getItem('user_tokens')) || 10; // টেস্টের জন্য শুরুতে ১০ টোকেন দেওয়া হলো
+        let adsWatchedToday = parseInt(localStorage.getItem('ads_watched_today')) || 0;
+        let currentMode = 'image';
+        const ADSGRAM_BLOCK_ID = "YOUR_ADSGRAM_BLOCK_ID";
+
+        function updateUI() {
+            document.getElementById('token-balance').innerText = tokens;
+            document.getElementById('ad-count-status').innerText = `আজ দেখেছেন: ${adsWatchedToday}/10 টি অ্যাড`;
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('mode-image').classList.toggle('active', mode === 'image');
+            document.getElementById('mode-video').classList.toggle('active', mode === 'video');
+            
+            // ভিডিও মোডে ইমেজ আপলোড হাইড থাকবে, ছবি মোডে শো করবে
+            document.getElementById('image-upload-container').style.display = (mode === 'image') ? 'block' : 'none';
+        }
+
+        function showRewardedAd() {
+            if (adsWatchedToday >= 10) {
+                tg.showAlert("আজকের অ্যাড দেখার সীমা শেষ!");
+                return;
+            }
+            // অ্যাড দেখার সিমুলেশন বা Adsgram SDK কল
+            tokens += 500;
+            adsWatchedToday += 1;
+            localStorage.setItem('user_tokens', tokens);
+            localStorage.setItem('ads_watched_today', adsWatchedToday);
+            updateUI();
+            tg.showAlert("অভিনন্দন! ৫০০ টোকেন যোগ হয়েছে।");
+        }
+
+        function generateMedia() {
+            const prompt = document.getElementById('prompt-input').value.trim();
+            const cost = (currentMode === 'image') ? 2 : 5;
+
+            if (!prompt) {
+                tg.showAlert("অনুগ্রহ করে প্রম্পট লিখুন!");
+                return;
+            }
+            if (tokens < cost) {
+                tg.showAlert(`পর্যাপ্ত টোকেন নেই! আপনার প্রয়োজন ${cost} টোকেন।`);
+                return;
+            }
+
+            tokens -= cost;
+            localStorage.setItem('user_tokens', tokens);
+            updateUI();
+
+            // ইমেজ ফাইল হ্যান্ডেল করা (যদি সিলেক্ট করে থাকে)
+            const fileInput = document.getElementById('upload-file');
+            let fileData = null;
+
+            if (fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    sendDataToBot(prompt, e.target.result);
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                sendDataToBot(prompt, null);
+            }
+        }
+
+        function sendDataToBot(prompt, imageBase64) {
+            const payload = {
+                type: currentMode,
+                prompt: prompt,
+                image: imageBase64 // বেস৬৪ ফরম্যাটে ছবি পাঠানো হলো
+            };
+            tg.sendData(JSON.stringify(payload)); // এটি মিনি অ্যাপ বন্ধ করে টেলিগ্রাম চ্যাটে ডেটা পাঠাবে
+        }
+
+        updateUI();
+    </script>
+</body>
+</html>
